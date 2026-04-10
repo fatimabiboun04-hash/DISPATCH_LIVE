@@ -68,7 +68,7 @@ class UserController extends Controller
             'nom'         => 'required|string|max:255',
             'email'       => 'required|email|unique:users,email',
             'password'    => 'required|string|min:6',
-            'equipe_id'   => 'required|exists:equipes,id',
+            'equipe_id'   => 'nullable|exists:equipes,id',
             'rating'      => 'nullable|integer|min:-5|max:5',
             'description' => 'nullable|string',
         ]);
@@ -106,7 +106,7 @@ class UserController extends Controller
             'nom'         => 'sometimes|string|max:255',
             'email'       => 'sometimes|email|unique:users,email,' . $id,
             'password'    => 'nullable|string|min:6',
-            'equipe_id'   => 'sometimes|exists:equipes,id',
+            'equipe_id'   => 'sometimes|nullable|exists:equipes,id',
             'rating'      => 'nullable|integer|min:-5|max:5',
             'description' => 'nullable|string',
             'is_active'   => 'sometimes|boolean',
