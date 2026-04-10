@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -22,6 +21,12 @@ class AuthController extends Controller
             return response()->json([
                 'message' => 'Email ou mot de passe incorrect'
             ], 401);
+        }
+
+        if (!$user->is_active) {
+            return response()->json([
+                'message' => 'Compte désactivé — contacter l\'admin'
+            ], 403);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -52,11 +57,12 @@ class AuthController extends Controller
         $user = $request->user()->load('equipe');
 
         return response()->json([
-            'id'     => $user->id,
-            'nom'    => $user->nom,
-            'email'  => $user->email,
-            'role'   => $user->role,
-            'equipe' => $user->equipe?->nom,
+            'id'        => $user->id,
+            'nom'       => $user->nom,
+            'email'     => $user->email,
+            'role'      => $user->role,
+            'equipe'    => $user->equipe?->nom,
+            'is_active' => $user->is_active,
         ]);
     }
 }

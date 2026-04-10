@@ -18,6 +18,9 @@ return new class extends Migration
             $table->foreignId('equipe_id')->nullable()->constrained('equipes')->onDelete('set null');
             $table->rememberToken();
             $table->timestamps();
+            $table->integer('rating')->default(0);
+            $table->text('description')->nullable();
+            $table->boolean('is_active')->default(true);
         });
     }
 
