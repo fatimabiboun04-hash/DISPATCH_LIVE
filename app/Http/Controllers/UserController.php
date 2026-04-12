@@ -8,14 +8,9 @@ use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-    // ==================
-    // ADMIN ONLY
-    // ==================
-
     public function index(Request $request)
     {
-        $query = User::with('equipe')
-                     ->where('role', 'NoAdmin');
+        $query = User::with('equipe')->where('role', 'NoAdmin');
 
         if ($request->filled('search')) {
             $query->where('nom', 'like', '%' . $request->search . '%');
@@ -29,8 +24,10 @@ class UserController extends Controller
             $query->where('is_active', $request->boolean('is_active'));
         }
 
-        $users = $query->get()->map(function ($user) {
-            return [
+        $users = $query->paginate(10);
+
+        return response()->json([
+            'data'         => collect($users->items())->map(fn($user) => [
                 'id'          => $user->id,
                 'nom'         => $user->nom,
                 'email'       => $user->email,
@@ -39,10 +36,12 @@ class UserController extends Controller
                 'rating'      => $user->rating,
                 'description' => $user->description,
                 'is_active'   => $user->is_active,
-            ];
-        });
-
-        return response()->json($users);
+            ]),
+            'total'        => $users->total(),
+            'per_page'     => $users->perPage(),
+            'current_page' => $users->currentPage(),
+            'last_page'    => $users->lastPage(),
+        ]);
     }
 
     public function show($id)
@@ -154,10 +153,6 @@ class UserController extends Controller
             'message' => 'Employe supprimé avec succès'
         ]);
     }
-
-    // ==================
-    // EMPLOYE + ADMIN
-    // ==================
 
     public function monProfil(Request $request)
     {

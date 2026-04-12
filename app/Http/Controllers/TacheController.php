@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 
 class TacheController extends Controller
 {
-    // Admin + Employe
     public function index(Request $request)
     {
         $query = Tache::query();
@@ -16,19 +15,22 @@ class TacheController extends Controller
             $query->where('is_permanent', $request->boolean('is_permanent'));
         }
 
-        $taches = $query->get()->map(function ($tache) {
-            return [
+        $taches = $query->paginate(10);
+
+        return response()->json([
+            'data'         => collect($taches->items())->map(fn($tache) => [
                 'id'           => $tache->id,
                 'titre'        => $tache->titre,
                 'description'  => $tache->description,
                 'is_permanent' => $tache->is_permanent,
-            ];
-        });
-
-        return response()->json($taches);
+            ]),
+            'total'        => $taches->total(),
+            'per_page'     => $taches->perPage(),
+            'current_page' => $taches->currentPage(),
+            'last_page'    => $taches->lastPage(),
+        ]);
     }
 
-    // Admin
     public function store(Request $request)
     {
         $request->validate([
@@ -54,7 +56,6 @@ class TacheController extends Controller
         ], 201);
     }
 
-    // Admin
     public function update(Request $request, $id)
     {
         $tache = Tache::findOrFail($id);
@@ -80,12 +81,10 @@ class TacheController extends Controller
         ]);
     }
 
-    // Admin
     public function destroy($id)
     {
         $tache = Tache::findOrFail($id);
 
-        // Check ila tache msta3mla f-planning
         if ($tache->plannings()->exists()) {
             return response()->json([
                 'message' => 'Ma-ymkn-ch tsupprimi — tache msta3mla f-planning'

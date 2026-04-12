@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 
 class EquipeController extends Controller
 {
-    // Admin + Employe
     public function index(Request $request)
     {
         $query = Equipe::withCount('users');
@@ -16,19 +15,22 @@ class EquipeController extends Controller
             $query->where('type', $request->type);
         }
 
-        $equipes = $query->get()->map(function ($equipe) {
-            return [
+        $equipes = $query->paginate(10);
+
+        return response()->json([
+            'data'         => collect($equipes->items())->map(fn($equipe) => [
                 'id'          => $equipe->id,
                 'nom'         => $equipe->nom,
                 'type'        => $equipe->type,
                 'users_count' => $equipe->users_count,
-            ];
-        });
-
-        return response()->json($equipes);
+            ]),
+            'total'        => $equipes->total(),
+            'per_page'     => $equipes->perPage(),
+            'current_page' => $equipes->currentPage(),
+            'last_page'    => $equipes->lastPage(),
+        ]);
     }
 
-    // Admin
     public function show($id)
     {
         $equipe = Equipe::with('users')->findOrFail($id);
@@ -37,19 +39,16 @@ class EquipeController extends Controller
             'id'    => $equipe->id,
             'nom'   => $equipe->nom,
             'type'  => $equipe->type,
-            'users' => $equipe->users->map(function ($user) {
-                return [
-                    'id'        => $user->id,
-                    'nom'       => $user->nom,
-                    'email'     => $user->email,
-                    'rating'    => $user->rating,
-                    'is_active' => $user->is_active,
-                ];
-            }),
+            'users' => collect($equipe->users)->map(fn($u) => [
+                'id'        => $u->id,
+                'nom'       => $u->nom,
+                'email'     => $u->email,
+                'rating'    => $u->rating,
+                'is_active' => $u->is_active,
+            ]),
         ]);
     }
 
-    // Admin
     public function store(Request $request)
     {
         $request->validate([
@@ -68,7 +67,6 @@ class EquipeController extends Controller
         ], 201);
     }
 
-    // Admin
     public function update(Request $request, $id)
     {
         $equipe = Equipe::findOrFail($id);
@@ -90,7 +88,6 @@ class EquipeController extends Controller
         ]);
     }
 
-    // Admin
     public function destroy($id)
     {
         $equipe = Equipe::withCount('users')->findOrFail($id);

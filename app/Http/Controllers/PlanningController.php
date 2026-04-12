@@ -3,17 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Planning;
-use App\Models\Tache;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class PlanningController extends Controller
 {
-    // ==================
-    // HELPER — WhatsApp
-    // ==================
-
     private function sendWhatsApp(string $message): void
     {
         $instance = env('ULTRAMSG_INSTANCE_ID');
@@ -26,10 +22,6 @@ class PlanningController extends Controller
             'body'  => $message,
         ]);
     }
-
-    // ==================
-    // ADMIN
-    // ==================
 
     public function index(Request $request)
     {
@@ -53,28 +45,29 @@ class PlanningController extends Controller
             });
         }
 
-        $plannings = $query->get()->map(function ($planning) {
-            return [
-                'id'             => $planning->id,
-                'date'           => $planning->date,
-                'shift'          => $planning->shift,
-                'heure_debut'    => $planning->heure_debut,
-                'heure_fin'      => $planning->heure_fin,
-                'pause_minutes'  => $planning->pause_minutes,
-                'user'           => [
-                    'id'    => $planning->user->id,
-                    'nom'   => $planning->user->nom,
-                    'email' => $planning->user->email,
-                ],
-                'equipe'         => $planning->user->equipe?->nom,
-                'taches'         => $planning->taches->map(fn($t) => [
-                    'id'    => $t->id,
-                    'titre' => $t->titre,
-                ]),
-            ];
-        });
+        // Logic dyal pagination: 10 items per page
+        /** @var LengthAwarePaginator $plannings */
+        $plannings = $query->paginate(10);
 
-        return response()->json($plannings);
+        // through kat-khlik t-transformi l-data bla ma t-khri l-pagination object
+        return $plannings->through(fn($planning) => [
+            'id'            => $planning->id,
+            'date'          => $planning->date,
+            'shift'         => $planning->shift,
+            'heure_debut'   => $planning->heure_debut,
+            'heure_fin'     => $planning->heure_fin,
+            'pause_minutes' => $planning->pause_minutes,
+            'user'          => [
+                'id'    => $planning->user->id,
+                'nom'   => $planning->user->nom,
+                'email' => $planning->user->email,
+            ],
+            'equipe'        => $planning->user->equipe?->nom,
+            'taches'        => $planning->taches->map(fn($t) => [
+                'id'    => $t->id,
+                'titre' => $t->titre,
+            ]),
+        ]);
     }
 
     public function store(Request $request)
@@ -88,7 +81,6 @@ class PlanningController extends Controller
             'pause_minutes' => 'required|integer|min:0',
         ]);
 
-        // Check: user ma-3nduch planning f-nafs date + shift
         $exists = Planning::where('user_id', $request->user_id)
                           ->where('date',    $request->date)
                           ->where('shift',   $request->shift)
@@ -109,7 +101,6 @@ class PlanningController extends Controller
             'pause_minutes' => $request->pause_minutes,
         ]);
 
-        // WhatsApp notification
         $user = User::find($request->user_id);
         $this->sendWhatsApp(
             "Planning jadid wajed!\n" .
@@ -121,15 +112,7 @@ class PlanningController extends Controller
 
         return response()->json([
             'message'  => 'Planning créé avec succès',
-            'planning' => [
-                'id'            => $planning->id,
-                'user_id'       => $planning->user_id,
-                'date'          => $planning->date,
-                'shift'         => $planning->shift,
-                'heure_debut'   => $planning->heure_debut,
-                'heure_fin'     => $planning->heure_fin,
-                'pause_minutes' => $planning->pause_minutes,
-            ]
+            'planning' => $planning
         ], 201);
     }
 
@@ -145,12 +128,11 @@ class PlanningController extends Controller
             'pause_minutes' => 'sometimes|integer|min:0',
         ]);
 
-        // Check date + shift — ignore current planning
         if ($request->filled('date') || $request->filled('shift')) {
             $exists = Planning::where('user_id', $planning->user_id)
-                              ->where('date',    $request->date    ?? $planning->date)
-                              ->where('shift',   $request->shift   ?? $planning->shift)
-                              ->where('id',      '!=', $id)
+                              ->where('date',  $request->date  ?? $planning->date)
+                              ->where('shift', $request->shift ?? $planning->shift)
+                              ->where('id', '!=', $id)
                               ->exists();
 
             if ($exists) {
@@ -164,7 +146,6 @@ class PlanningController extends Controller
             'date', 'shift', 'heure_debut', 'heure_fin', 'pause_minutes'
         ]));
 
-        // WhatsApp — planning tbddel
         $this->sendWhatsApp(
             "Planning tbddel!\n" .
             "Employe: {$planning->user->nom}\n" .
@@ -175,14 +156,7 @@ class PlanningController extends Controller
 
         return response()->json([
             'message'  => 'Planning modifié avec succès',
-            'planning' => [
-                'id'            => $planning->id,
-                'date'          => $planning->date,
-                'shift'         => $planning->shift,
-                'heure_debut'   => $planning->heure_debut,
-                'heure_fin'     => $planning->heure_fin,
-                'pause_minutes' => $planning->pause_minutes,
-            ]
+            'planning' => $planning
         ]);
     }
 
@@ -195,10 +169,6 @@ class PlanningController extends Controller
             'message' => 'Planning supprimé avec succès'
         ]);
     }
-
-    // ==================
-    // EMPLOYE + ADMIN
-    // ==================
 
     public function monPlanning(Request $request)
     {
@@ -218,70 +188,49 @@ class PlanningController extends Controller
             $query->where('shift', $request->shift);
         }
 
-        $plannings = $query->get()->map(function ($planning) use ($user) {
-            return [
-                'id'            => $planning->id,
-                'date'          => $planning->date,
-                'shift'         => $planning->shift,
-                'heure_debut'   => $planning->heure_debut,
-                'heure_fin'     => $planning->heure_fin,
-                'pause_minutes' => $planning->pause_minutes,
-                'est_le_mien'   => $planning->user_id === $user->id,
-                'user'          => [
-                    'id'  => $planning->user->id,
-                    'nom' => $planning->user->nom,
-                ],
-                'taches'        => $planning->taches->map(fn($t) => [
-                    'id'    => $t->id,
-                    'titre' => $t->titre,
-                ]),
-            ];
-        });
+        /** @var LengthAwarePaginator $plannings */
+        $plannings = $query->paginate(10);
 
-        return response()->json($plannings);
+        return $plannings->through(fn($planning) => [
+            'id'            => $planning->id,
+            'date'          => $planning->date,
+            'shift'         => $planning->shift,
+            'heure_debut'   => $planning->heure_debut,
+            'heure_fin'     => $planning->heure_fin,
+            'pause_minutes' => $planning->pause_minutes,
+            'est_le_mien'   => $planning->user_id === $user->id,
+            'user'          => [
+                'id'  => $planning->user->id,
+                'nom' => $planning->user->nom,
+            ],
+            'taches'        => $planning->taches->map(fn($t) => [
+                'id'    => $t->id,
+                'titre' => $t->titre,
+            ]),
+        ]);
     }
-
-    // ==================
-    // TACHES D-PLANNING
-    // ==================
 
     public function addTache(Request $request, $id)
     {
         $planning = Planning::findOrFail($id);
+        $request->validate(['tache_id' => 'required|exists:taches,id']);
 
-        $request->validate([
-            'tache_id' => 'required|exists:taches,id',
-        ]);
-
-        // Check: tache machi deja f-planning
         if ($planning->taches()->where('tache_id', $request->tache_id)->exists()) {
-            return response()->json([
-                'message' => 'Tache kayna deja f-had planning'
-            ], 422);
+            return response()->json(['message' => 'Tache kayna deja f-had planning'], 422);
         }
 
         $planning->taches()->attach($request->tache_id);
-
-        return response()->json([
-            'message' => 'Tache ajoutée au planning avec succès'
-        ]);
+        return response()->json(['message' => 'Tache ajoutée au planning avec succès']);
     }
 
     public function removeTache($id, $tache_id)
     {
         $planning = Planning::findOrFail($id);
-
-        // Check: tache kayna f-planning
         if (!$planning->taches()->where('tache_id', $tache_id)->exists()) {
-            return response()->json([
-                'message' => 'Tache machi kayna f-had planning'
-            ], 404);
+            return response()->json(['message' => 'Tache machi kayna f-had planning'], 404);
         }
 
         $planning->taches()->detach($tache_id);
-
-        return response()->json([
-            'message' => 'Tache supprimée du planning avec succès'
-        ]);
+        return response()->json(['message' => 'Tache supprimée du planning avec succès']);
     }
 }
