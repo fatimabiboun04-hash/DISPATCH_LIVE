@@ -16,19 +16,21 @@ class AuthController extends Controller
         ]);
 
         $user = User::where('email', $request->email)->first();
+        //authentification
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
                 'message' => 'Email ou mot de passe incorrect'
             ], 401);
         }
+        //autorisation
 
         if (!$user->is_active) {
             return response()->json([
                 'message' => 'Compte désactivé — contacter l\'admin'
             ], 403);
         }
-
+        // cerate token 
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -45,6 +47,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        //delet token 
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([

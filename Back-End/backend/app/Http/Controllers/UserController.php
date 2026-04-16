@@ -9,9 +9,12 @@ use Illuminate\Support\Facades\Hash;
 class UserController extends Controller
 {
     public function index(Request $request)
-    {
-        $query = User::with('equipe')->where('role', 'NoAdmin');
 
+    {
+        //hna njibo users ou lequipe dyaleha 
+        $query = User::with('equipe')->where('role', 'NoAdmin');
+        
+        // filter par search and equipe and is_active
         if ($request->filled('search')) {
             $query->where('nom', 'like', '%' . $request->search . '%');
         }
@@ -23,7 +26,7 @@ class UserController extends Controller
         if ($request->filled('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
         }
-
+        //bax response maykonx t9ile 
         $users = $query->paginate(10);
 
         return response()->json([
@@ -37,6 +40,7 @@ class UserController extends Controller
                 'description' => $user->description,
                 'is_active'   => $user->is_active,
             ]),
+            //pagination info
             'total'        => $users->total(),
             'per_page'     => $users->perPage(),
             'current_page' => $users->currentPage(),
@@ -110,6 +114,7 @@ class UserController extends Controller
             'description' => 'nullable|string',
             'is_active'   => 'sometimes|boolean',
         ]);
+        //data li baghin ikone fe list dyal user 
 
         $data = $request->only([
             'nom', 'email', 'equipe_id',
