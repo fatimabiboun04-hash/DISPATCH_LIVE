@@ -87,7 +87,7 @@ class TacheController extends Controller
 
         if ($tache->plannings()->exists()) {
             return response()->json([
-                'message' => 'tache exist dans palnning'
+                'message' => 'Ma-ymkn-ch tsupprimi — tache msta3mla f-planning'
             ], 422);
         }
 

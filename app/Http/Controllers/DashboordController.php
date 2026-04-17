@@ -21,12 +21,6 @@ class DashboardController extends Controller
         // ==================
         // Statistiques générales (Optimized with selectRaw)
         // ==================
-        //eloquent trika kola mera kanjibo hsabe wahed 
-        //$total_employe=User::wher('role','NoAdmin')->count();
-        //$total_actifs=User::where('role','NoAdmin)->where('is_active',1)->count();
-        //$total_inactifs=User::where('role','NoAdmin')->where('is_active',0)->count();
-        //$total_equipe=Equipe::count();
-        //$total_tache=Tache::count();
         $userStats = User::where('role', 'NoAdmin')
             ->selectRaw('
                 COUNT(*) as total_employes,
@@ -34,7 +28,7 @@ class DashboardController extends Controller
                 SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as total_inactifs
             ')
             ->first();
-        //final array state 
+
         $stats = [
             'total_employes' => (int) $userStats->total_employes,
             'total_actifs'   => (int) $userStats->total_actifs,
@@ -117,7 +111,7 @@ class DashboardController extends Controller
     }
 
     // ==================
-    // RAPPORT HEBDOMADAIRE 
+    // RAPPORT HEBDOMADAIRE (Hada khallito kima kan)
     // ==================
     public function rapportHebdomadaire(Request $request)
     {
