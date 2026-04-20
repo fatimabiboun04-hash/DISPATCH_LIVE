@@ -14,12 +14,12 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $today      = Carbon::today();
-        $startWeek  = Carbon::now()->startOfWeek();
-        $endWeek    = Carbon::now()->endOfWeek();
+        $today     = Carbon::today();
+        $startWeek = Carbon::now()->startOfWeek();
+        $endWeek   = Carbon::now()->endOfWeek();
 
         // ==================
-        // Statistiques générales (Optimized with selectRaw)
+        // Statistiques générales
         // ==================
         $userStats = User::where('role', 'NoAdmin')
             ->selectRaw('
@@ -100,6 +100,41 @@ class DashboardController extends Controller
                 'total' => $s->total,
             ]);
 
+        // ==================
+        // Alertes 44h semaine courante
+        // ==================
+        $alertes44h = Planning::with('user.equipe')
+            ->whereBetween('date', [$startWeek, $endWeek])
+            ->where('over_44h', true)
+            ->get()
+            ->map(fn($p) => [
+                'user_id' => $p->user->id,
+                'nom'     => $p->user->nom,
+                'equipe'  => $p->user->equipe?->nom,
+            ])
+            ->unique('user_id')
+            ->values();
+
+        // ==================
+        // Heures par employe semaine courante
+        // ==================
+        $heuresParEmployeSemaine = Planning::with('user.equipe')
+            ->whereBetween('date', [$startWeek, $endWeek])
+            ->get()
+            ->groupBy('user_id')
+            ->map(function ($items) {
+                $user        = $items->first()->user;
+                $totalHeures = $items->sum('heures_reelles');
+                return [
+                    'user_id'      => $user->id,
+                    'nom'          => $user->nom,
+                    'equipe'       => $user->equipe?->nom,
+                    'total_heures' => round($totalHeures, 2),
+                    'over_44h'     => $totalHeures > 44,
+                ];
+            })
+            ->values();
+
         return response()->json([
             'stats'               => $stats,
             'plannings'           => $plannings,
@@ -107,11 +142,13 @@ class DashboardController extends Controller
             'top_employes'        => $topEmployes,
             'equipes_aujourd_hui' => $equipesAujourdhui,
             'shifts_aujourd_hui'  => $shifts,
+            'alertes_44h'         => $alertes44h,
+            'heures_par_employe'  => $heuresParEmployeSemaine,
         ]);
     }
 
     // ==================
-    // RAPPORT HEBDOMADAIRE (Hada khallito kima kan)
+    // RAPPORT HEBDOMADAIRE
     // ==================
     public function rapportHebdomadaire(Request $request)
     {
@@ -130,17 +167,18 @@ class DashboardController extends Controller
         $heuresParEmploye = $plannings->groupBy('user_id')->map(function ($items) {
             $user         = $items->first()->user;
             $totalMinutes = $items->sum(function ($p) {
-                $debut  = Carbon::parse($p->heure_debut);
-                $fin    = Carbon::parse($p->heure_fin);
+                $debut = Carbon::parse($p->heure_debut);
+                $fin   = Carbon::parse($p->heure_fin);
                 return $fin->diffInMinutes($debut) - $p->pause_minutes;
             });
 
             return [
-                'user_id'       => $user->id,
-                'nom'           => $user->nom,
-                'equipe'        => $user->equipe?->nom,
-                'total_heures'  => round($totalMinutes / 60, 2),
-                'nb_plannings'  => $items->count(),
+                'user_id'      => $user->id,
+                'nom'          => $user->nom,
+                'equipe'       => $user->equipe?->nom,
+                'total_heures' => round($totalMinutes / 60, 2),
+                'nb_plannings' => $items->count(),
+                'over_44h'     => round($totalMinutes / 60, 2) > 44,
             ];
         })->values();
 
@@ -151,16 +189,16 @@ class DashboardController extends Controller
                 'total' => $items->count(),
             ])->values();
 
-        $couvertureEquipes = Equipe::withCount('users')
+        $couvertureEquipes = Equipe::with('users')->withCount('users')
             ->get()
             ->map(function ($equipe) use ($plannings) {
-                $employes     = $equipe->users->pluck('id');
-                $nbPlanifies  = $plannings->whereIn('user_id', $employes)
-                                           ->pluck('user_id')
-                                           ->unique()
-                                           ->count();
-                $total        = $equipe->users_count;
-                $taux         = $total > 0
+                $employes    = $equipe->users->pluck('id');
+                $nbPlanifies = $plannings->whereIn('user_id', $employes)
+                                         ->pluck('user_id')
+                                         ->unique()
+                                         ->count();
+                $total       = $equipe->users_count;
+                $taux        = $total > 0
                     ? round(($nbPlanifies / $total) * 100, 1)
                     : 0;
 
@@ -173,15 +211,32 @@ class DashboardController extends Controller
                 ];
             });
 
+        // Alertes 44h f-had periode
+        $alertes = $plannings
+            ->groupBy('user_id')
+            ->filter(function ($items) {
+                return $items->sum('heures_reelles') > 44;
+            })
+            ->map(function ($items) {
+                $user = $items->first()->user;
+                return [
+                    'nom'          => $user->nom,
+                    'equipe'       => $user->equipe?->nom,
+                    'total_heures' => round($items->sum('heures_reelles'), 2),
+                ];
+            })
+            ->values();
+
         return response()->json([
-            'periode' => [
+            'periode'            => [
                 'debut' => $startWeek->format('Y-m-d'),
                 'fin'   => $endWeek->format('Y-m-d'),
             ],
-            'total_plannings'     => $plannings->count(),
-            'heures_par_employe'  => $heuresParEmploye,
-            'repartition_shifts'  => $repartitionShifts,
-            'couverture_equipes'  => $couvertureEquipes,
+            'total_plannings'    => $plannings->count(),
+            'heures_par_employe' => $heuresParEmploye,
+            'repartition_shifts' => $repartitionShifts,
+            'couverture_equipes' => $couvertureEquipes,
+            'alertes_44h'        => $alertes,
         ]);
     }
 }

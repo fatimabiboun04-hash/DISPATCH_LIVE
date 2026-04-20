@@ -1,3 +1,4 @@
+  
 <?php
 // database/migrations/xxxx_create_users_table.php
 use Illuminate\Database\Migrations\Migration;
@@ -29,3 +30,7 @@ return new class extends Migration
         Schema::dropIfExists('users');
     }
 };
+
+
+
+

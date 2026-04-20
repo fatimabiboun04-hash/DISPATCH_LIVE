@@ -16,7 +16,14 @@ class Planning extends Model
         'heure_debut',
         'heure_fin',
         'pause_minutes',
+         'heures_reelles', 
+         'over_44h', 
     ];
+    protected $casts = [
+    'date'              =>   'date',
+    'over_44h'          => 'boolean', 
+    'heures_reelles'    => 'float',   
+];
 
     // Planning appartient à un User
     public function user()
